@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-white text-zinc-900 antialiased;
+    font-feature-settings: 'palt' 1;
+  }
+  .dark body {
+    @apply bg-zinc-950 text-zinc-100;
+  }
+  input,
+  select,
+  textarea {
+    @apply bg-transparent;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+}
