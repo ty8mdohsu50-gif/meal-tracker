@@ -43,12 +43,58 @@ export function SettingsPage() {
       protein_coef: draft.protein_coef,
       fat_ratio: draft.fat_ratio,
       target_weight_change_per_week: draft.target_weight_change_per_week,
+      target_weight_kg: draft.target_weight_kg ?? null,
+      target_date: draft.target_date ?? null,
       current_target_kcal: draft.current_target_kcal,
       current_target_p: draft.current_target_p,
       current_target_f: draft.current_target_f,
       current_target_c: draft.current_target_c,
     });
     show('設定を保存しました', 'success');
+  };
+
+  const hasGoal = draft.target_weight_kg != null && draft.target_date != null;
+  const derivedKgPerWeek = (() => {
+    if (!hasGoal) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(draft.target_date as string);
+    const weeks = (target.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000);
+    if (!Number.isFinite(weeks) || weeks <= 0) return draft.target_weight_change_per_week;
+    return ((draft.target_weight_kg as number) - draft.current_weight_kg) / weeks;
+  })();
+
+  const setGoalMaintain = () => {
+    setDraft({
+      ...draft,
+      target_weight_kg: null,
+      target_date: null,
+      target_weight_change_per_week: 0,
+    });
+  };
+
+  const setGoalCustom = (patch: { targetWeight?: number; targetDate?: string }) => {
+    const nextWeight = patch.targetWeight ?? draft.target_weight_kg ?? draft.current_weight_kg;
+    const nextDate =
+      patch.targetDate ??
+      draft.target_date ??
+      (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 12 * 7);
+        return d.toISOString().slice(0, 10);
+      })();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(nextDate);
+    const weeks = (target.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000);
+    const perWeek =
+      Number.isFinite(weeks) && weeks > 0 ? (nextWeight - draft.current_weight_kg) / weeks : 0;
+    setDraft({
+      ...draft,
+      target_weight_kg: nextWeight,
+      target_date: nextDate,
+      target_weight_change_per_week: perWeek,
+    });
   };
 
   const saveApiKey = () => {
@@ -186,16 +232,60 @@ export function SettingsPage() {
             }
             suffix="%"
           />
-          <Input
-            label="体重変化目標"
-            type="number"
-            step="0.1"
-            value={draft.target_weight_change_per_week}
-            onChange={(e) =>
-              setDraft({ ...draft, target_weight_change_per_week: Number(e.target.value) })
-            }
-            suffix="kg/週"
-          />
+        </div>
+
+        <div className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+          <p className="mb-2 text-sm font-semibold">体重の目標</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={setGoalMaintain}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
+                !hasGoal
+                  ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                  : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              現状維持
+            </button>
+            <button
+              type="button"
+              onClick={() => setGoalCustom({})}
+              className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${
+                hasGoal
+                  ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                  : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800'
+              }`}
+            >
+              目標を決める
+            </button>
+          </div>
+
+          {hasGoal && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Input
+                label="目標体重"
+                type="number"
+                step="0.1"
+                value={draft.target_weight_kg ?? ''}
+                onChange={(e) => setGoalCustom({ targetWeight: Number(e.target.value) })}
+                suffix="kg"
+              />
+              <Input
+                label="達成したい日"
+                type="date"
+                value={draft.target_date ?? ''}
+                onChange={(e) => setGoalCustom({ targetDate: e.target.value })}
+              />
+              <div className="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
+                現在のペース：
+                <span className="font-mono font-semibold">
+                  {derivedKgPerWeek > 0 ? '+' : ''}
+                  {derivedKgPerWeek.toFixed(2)} kg/週
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
@@ -230,6 +320,27 @@ export function SettingsPage() {
         <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
           本日の使用量: <span className="font-mono">{todayCount} / {limit}</span>
         </p>
+        {!settings.api_key_enc && (
+          <div className="mb-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-300">
+            <p className="mb-1 font-semibold text-zinc-900 dark:text-zinc-100">キーの取得方法</p>
+            <ol className="ml-4 list-decimal space-y-0.5 leading-relaxed">
+              <li>
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-emerald-600 underline hover:text-emerald-700 dark:text-emerald-400"
+                >
+                  Google AI Studio
+                </a>
+                を開いて Google アカウントでログイン
+              </li>
+              <li>「Create API key」ボタンをクリック</li>
+              <li>「AIza…」で始まるキーをコピー</li>
+              <li>下の欄に貼り付けて保存</li>
+            </ol>
+          </div>
+        )}
         <div className="flex gap-2">
           <Input
             type={showApiKey ? 'text' : 'password'}

@@ -58,13 +58,29 @@ export const ACTIVITY_LEVELS: Record<
   ActivityLevelKey,
   { label: string; description: string; coef: number }
 > = {
-  sedentary: { label: '座位中心', description: 'デスクワーク中心、運動ほぼなし', coef: 1.2 },
-  lightlyActive: { label: '軽い運動', description: '週1〜3日の軽い運動・散歩', coef: 1.375 },
-  moderatelyActive: { label: '中程度', description: '週3〜5日の運動', coef: 1.55 },
-  veryActive: { label: '活発', description: '週6〜7日の激しい運動', coef: 1.725 },
+  sedentary: {
+    label: 'ほとんど運動しない',
+    description: 'デスクワーク中心で、1日の歩数が5,000歩以下',
+    coef: 1.2,
+  },
+  lightlyActive: {
+    label: '週に1〜2回 軽く運動する',
+    description: '通勤・買い物でよく歩く／週1〜2回 ウォーキングや軽い筋トレ',
+    coef: 1.375,
+  },
+  moderatelyActive: {
+    label: '週に3〜5回 運動する',
+    description: 'ジム・ランニング・スポーツなどを週3〜5回',
+    coef: 1.55,
+  },
+  veryActive: {
+    label: 'ほぼ毎日しっかり運動する',
+    description: '週6〜7回 本格的なトレーニングやスポーツ',
+    coef: 1.725,
+  },
   extremelyActive: {
-    label: '極めて活発',
-    description: '毎日激しい運動・肉体労働',
+    label: 'アスリート級／肉体労働',
+    description: '毎日2時間以上の激しい運動、または建設業など立ち仕事中心',
     coef: 1.9,
   },
 };
@@ -78,11 +94,26 @@ export const MEAL_TYPE_LABELS: Record<MealType, string> = {
 
 export const PFC_POLICY_CONFIG: Record<
   PfcPolicy,
-  { label: string; proteinCoef: number; fatRatio: number }
+  { label: string; description: string; proteinCoef: number; fatRatio: number }
 > = {
-  maintain: { label: '維持', proteinCoef: 1.2, fatRatio: 0.25 },
-  diet: { label: 'ダイエット', proteinCoef: 1.8, fatRatio: 0.25 },
-  bulk: { label: '増量', proteinCoef: 2.0, fatRatio: 0.25 },
+  maintain: {
+    label: '健康維持',
+    description: '体重を大きく変えず、バランスよく食べたい人向け',
+    proteinCoef: 1.2,
+    fatRatio: 0.25,
+  },
+  diet: {
+    label: 'ダイエット（筋肉を残して脂肪を減らす）',
+    description: 'しっかりタンパク質を摂って、減量中でも筋肉を落としにくくする',
+    proteinCoef: 1.8,
+    fatRatio: 0.25,
+  },
+  bulk: {
+    label: '増量（筋肉を増やす）',
+    description: 'トレーニングと一緒に、筋肥大を狙ってタンパク質多めに',
+    proteinCoef: 2.0,
+    fatRatio: 0.25,
+  },
 };
 
 export const PFC_COLORS = {

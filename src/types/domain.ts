@@ -82,6 +82,8 @@ export type Settings = {
   protein_coef: number;
   fat_ratio: number;
   target_weight_change_per_week: number;
+  target_weight_kg?: number | null;
+  target_date?: string | null;
   current_target_kcal: number;
   current_target_p: number;
   current_target_f: number;

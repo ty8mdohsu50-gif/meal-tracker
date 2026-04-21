@@ -13,6 +13,26 @@ import { todayKey } from '@/utils/date';
 import { uuid } from '@/utils/id';
 
 type Step = 1 | 2 | 3 | 4;
+type GoalMode = 'maintain' | 'custom';
+
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_TARGET_DATE_WEEKS = 12;
+
+function isoDateOffsetFromToday(weeks: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + weeks * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+function calcKgPerWeek(currentKg: number, targetKg: number, targetDateIso: string): number | null {
+  if (!targetDateIso) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDateIso);
+  const weeks = (target.getTime() - today.getTime()) / MS_PER_WEEK;
+  if (!Number.isFinite(weeks) || weeks <= 0) return null;
+  return (targetKg - currentKg) / weeks;
+}
 
 export function WizardPage() {
   const navigate = useNavigate();
@@ -25,17 +45,39 @@ export function WizardPage() {
   const [weightKg, setWeightKg] = useState<string>('65');
   const [activity, setActivity] = useState<ActivityLevelKey>('lightlyActive');
   const [policy, setPolicy] = useState<PfcPolicy>('maintain');
-  const [targetChange, setTargetChange] = useState<string>('0');
+  const [goalMode, setGoalMode] = useState<GoalMode>('maintain');
+  const [targetWeight, setTargetWeight] = useState<string>('');
+  const [targetDate, setTargetDate] = useState<string>(() =>
+    isoDateOffsetFromToday(DEFAULT_TARGET_DATE_WEEKS),
+  );
   const [apiKey, setApiKey] = useState<string>('');
+
+  const currentWeight = Number(weightKg);
+
+  const kgPerWeek = useMemo(() => {
+    if (goalMode === 'maintain') return 0;
+    const tw = Number(targetWeight);
+    if (!tw || !currentWeight) return null;
+    return calcKgPerWeek(currentWeight, tw, targetDate);
+  }, [goalMode, currentWeight, targetWeight, targetDate]);
+
+  const paceWarning = useMemo(() => {
+    if (kgPerWeek === null) return null;
+    const abs = Math.abs(kgPerWeek);
+    if (abs > 1) return '週1kg超のペースはかなり厳しく、体調を崩しやすいです。期間を延ばすのがおすすめです。';
+    if (abs > 0.7) return '週0.7kg超はやや急ピッチです。無理のない範囲で調整しましょう。';
+    return null;
+  }, [kgPerWeek]);
 
   const preview = useMemo(() => {
     const a = Number(age);
     const h = Number(heightCm);
-    const w = Number(weightKg);
+    const w = currentWeight;
     if (!a || !h || !w) return null;
     const bmr = calculateBmr({ sex, weightKg: w, heightCm: h, age: a });
     const tdee = calculateTdee(bmr, activity);
-    const targetKcal = calculateInitialTargetKcal(tdee, Number(targetChange));
+    const weeklyChange = kgPerWeek ?? 0;
+    const targetKcal = calculateInitialTargetKcal(tdee, weeklyChange);
     const pfcCfg = PFC_POLICY_CONFIG[policy];
     const pfc = calculatePfcGoal({
       targetKcal,
@@ -43,14 +85,14 @@ export function WizardPage() {
       proteinCoef: pfcCfg.proteinCoef,
       fatRatio: pfcCfg.fatRatio,
     });
-    return { bmr: Math.round(bmr), tdee: Math.round(tdee), targetKcal, pfc };
-  }, [sex, age, heightCm, weightKg, activity, policy, targetChange]);
+    return { bmr: Math.round(bmr), tdee: Math.round(tdee), targetKcal, pfc, weeklyChange };
+  }, [sex, age, heightCm, currentWeight, activity, policy, kgPerWeek]);
 
   const canProceed = (): boolean => {
     if (step === 1) {
       const a = Number(age);
       const h = Number(heightCm);
-      const w = Number(weightKg);
+      const w = currentWeight;
       return (
         a >= APP_CONFIG.AGE_MIN &&
         a <= APP_CONFIG.AGE_MAX &&
@@ -60,6 +102,11 @@ export function WizardPage() {
         w <= APP_CONFIG.WEIGHT_MAX
       );
     }
+    if (step === 3 && goalMode === 'custom') {
+      const tw = Number(targetWeight);
+      if (!tw || tw < APP_CONFIG.WEIGHT_MIN || tw > APP_CONFIG.WEIGHT_MAX) return false;
+      if (kgPerWeek === null) return false;
+    }
     return true;
   };
 
@@ -67,16 +114,19 @@ export function WizardPage() {
     if (!preview) return;
     const now = new Date().toISOString();
     const pfcCfg = PFC_POLICY_CONFIG[policy];
+    const weeklyChange = preview.weeklyChange;
     const settings: Settings = {
       sex,
       age: Number(age),
       height_cm: Number(heightCm),
-      current_weight_kg: Number(weightKg),
+      current_weight_kg: currentWeight,
       activity_level_key: activity,
       pfc_policy: policy,
       protein_coef: pfcCfg.proteinCoef,
       fat_ratio: pfcCfg.fatRatio,
-      target_weight_change_per_week: Number(targetChange),
+      target_weight_change_per_week: weeklyChange,
+      target_weight_kg: goalMode === 'custom' ? Number(targetWeight) : null,
+      target_date: goalMode === 'custom' ? targetDate : null,
       current_target_kcal: preview.targetKcal,
       current_target_p: preview.pfc.p,
       current_target_f: preview.pfc.f,
@@ -103,7 +153,7 @@ export function WizardPage() {
     weightRepository.save({
       weight_id: uuid(),
       recorded_date: todayKey(),
-      weight_kg: Number(weightKg),
+      weight_kg: currentWeight,
       recorded_at: now,
     });
     reload();
@@ -111,7 +161,7 @@ export function WizardPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-[80vh] max-w-lg flex-col justify-center gap-6">
+    <div className="mx-auto flex min-h-[80vh] max-w-lg flex-col justify-center gap-6 px-4">
       <div>
         <h1 className="text-xl font-bold">初期設定</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
@@ -167,6 +217,9 @@ export function WizardPage() {
 
         {step === 2 && (
           <div className="flex flex-col gap-2">
+            <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">
+              あなたの普段の生活に一番近いものを選んでください。
+            </p>
             {(Object.keys(ACTIVITY_LEVELS) as ActivityLevelKey[]).map((key) => (
               <label
                 key={key}
@@ -187,7 +240,7 @@ export function WizardPage() {
                 <div>
                   <p className="text-sm font-semibold">{ACTIVITY_LEVELS[key].label}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {ACTIVITY_LEVELS[key].description}（係数 {ACTIVITY_LEVELS[key].coef}）
+                    {ACTIVITY_LEVELS[key].description}
                   </p>
                 </div>
               </label>
@@ -196,38 +249,142 @@ export function WizardPage() {
         )}
 
         {step === 3 && (
-          <div className="flex flex-col gap-4">
-            <Select
-              label="PFC 方針"
-              value={policy}
-              onChange={(e) => setPolicy(e.target.value as PfcPolicy)}
-            >
-              {(Object.keys(PFC_POLICY_CONFIG) as PfcPolicy[]).map((k) => (
-                <option key={k} value={k}>
-                  {PFC_POLICY_CONFIG[k].label}（P係数 {PFC_POLICY_CONFIG[k].proteinCoef}g/kg）
-                </option>
-              ))}
-            </Select>
-            <Input
-              label="体重変化目標"
-              type="number"
-              value={targetChange}
-              onChange={(e) => setTargetChange(e.target.value)}
-              suffix="kg/週"
-              inputMode="decimal"
-              step="0.1"
-              hint="-0.5 でゆるやかな減量、+0.3 で増量。0 で維持"
-            />
+          <div className="flex flex-col gap-5">
+            <div>
+              <p className="mb-2 text-sm font-semibold">食事の方針</p>
+              <div className="flex flex-col gap-2">
+                {(Object.keys(PFC_POLICY_CONFIG) as PfcPolicy[]).map((k) => (
+                  <label
+                    key={k}
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                      policy === k
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                        : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="policy"
+                      value={k}
+                      checked={policy === k}
+                      onChange={() => setPolicy(k)}
+                      className="mt-1 accent-emerald-600"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold">{PFC_POLICY_CONFIG[k].label}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {PFC_POLICY_CONFIG[k].description}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold">体重の目標</p>
+              <div className="flex flex-col gap-2">
+                <label
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                    goalMode === 'maintain'
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                      : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="goal_mode"
+                    checked={goalMode === 'maintain'}
+                    onChange={() => setGoalMode('maintain')}
+                    className="mt-1 accent-emerald-600"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">現状の体重を維持する</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      今の体重をキープすることを目標にします
+                    </p>
+                  </div>
+                </label>
+                <label
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                    goalMode === 'custom'
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+                      : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="goal_mode"
+                    checked={goalMode === 'custom'}
+                    onChange={() => setGoalMode('custom')}
+                    className="mt-1 accent-emerald-600"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">目標体重と達成日を決める</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      「いつまでに何 kg になりたいか」を入力します
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {goalMode === 'custom' && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Input
+                    label="目標体重"
+                    type="number"
+                    value={targetWeight}
+                    onChange={(e) => setTargetWeight(e.target.value)}
+                    suffix="kg"
+                    inputMode="decimal"
+                    step="0.1"
+                    placeholder={String(Math.max(0, currentWeight - 3))}
+                  />
+                  <Input
+                    label="達成したい日"
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
             {preview && (
               <div className="rounded-lg bg-zinc-50 p-4 text-sm dark:bg-zinc-800">
-                <div className="mb-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">プレビュー</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>BMR</div><div className="text-right font-mono">{preview.bmr} kcal</div>
-                  <div>TDEE</div><div className="text-right font-mono">{preview.tdee} kcal</div>
-                  <div>目標 kcal</div><div className="text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">{preview.targetKcal}</div>
-                  <div>P / F / C</div>
-                  <div className="text-right font-mono">{preview.pfc.p} / {preview.pfc.f} / {preview.pfc.c} g</div>
+                <div className="mb-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                  計算結果（1日あたり）
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-zinc-600 dark:text-zinc-300">基礎代謝 (BMR)</div>
+                  <div className="text-right font-mono">{preview.bmr} kcal</div>
+                  <div className="text-zinc-600 dark:text-zinc-300">消費カロリー (TDEE)</div>
+                  <div className="text-right font-mono">{preview.tdee} kcal</div>
+                  <div className="font-semibold">1日の摂取目標</div>
+                  <div className="text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    {preview.targetKcal.toLocaleString()} kcal
+                  </div>
+                  <div className="text-zinc-600 dark:text-zinc-300">
+                    タンパク質 / 脂質 / 炭水化物
+                  </div>
+                  <div className="text-right font-mono">
+                    {preview.pfc.p} / {preview.pfc.f} / {preview.pfc.c} g
+                  </div>
+                </div>
+                {goalMode === 'custom' && kgPerWeek !== null && (
+                  <div className="mt-3 border-t border-zinc-200 pt-3 text-xs dark:border-zinc-700">
+                    ペース：
+                    <span className="font-mono font-semibold">
+                      {kgPerWeek > 0 ? '+' : ''}
+                      {kgPerWeek.toFixed(2)} kg/週
+                    </span>
+                  </div>
+                )}
+                {paceWarning && (
+                  <div className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    {paceWarning}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -235,16 +392,40 @@ export function WizardPage() {
 
         {step === 4 && (
           <div className="flex flex-col gap-4">
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-300">
+              <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Gemini API キーの取り方（任意・無料枠あり）
+              </p>
+              <ol className="ml-4 list-decimal space-y-1 leading-relaxed">
+                <li>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-emerald-600 underline hover:text-emerald-700 dark:text-emerald-400"
+                  >
+                    Google AI Studio（aistudio.google.com/apikey）
+                  </a>
+                  を開いて Google アカウントでログイン
+                </li>
+                <li>「Create API key」ボタンをクリック</li>
+                <li>表示された「AIza…」で始まるキーをコピー</li>
+                <li>下の欄に貼り付けて「完了」</li>
+              </ol>
+              <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                ※ 写真から料理を自動推定する機能でのみ使います。未登録でも「検索で記録」は使えます。
+              </p>
+            </div>
             <Input
-              label="Gemini API キー（任意）"
+              label="Gemini API キー"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="AIza..."
-              hint="写真認識に使用。後で設定画面からも登録できます"
+              hint="後で設定画面からも登録・変更できます"
             />
             <div className="rounded-lg bg-sky-50 p-3 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
-              キーは端末内 localStorage にのみ保存されます。送信先は Gemini API のみです。
+              キーは端末内 localStorage と Firestore のあなた専用領域にのみ保存されます。送信先は Gemini API のみです。
             </div>
           </div>
         )}
