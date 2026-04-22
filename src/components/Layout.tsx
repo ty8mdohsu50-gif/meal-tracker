@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { useSwipeable } from 'react-swipeable';
 import { useSettings } from '@/contexts/SettingsContext';
 
 type NavItem = { to: string; label: string; icon: ReactNode };
@@ -71,12 +72,35 @@ const NAV: NavItem[] = [
 
 export function Layout() {
   const { settings, setSettings } = useSettings();
+  const location = useLocation();
+  const navigate = useNavigate();
   const theme = settings?.theme_mode ?? 'auto';
 
   const cycleTheme = () => {
     const next = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto';
     setSettings((prev) => (prev ? { ...prev, theme_mode: next, updated_at: new Date().toISOString() } : prev));
   };
+
+  const currentIndex = NAV.findIndex((item) =>
+    item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to),
+  );
+
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => {
+      if (currentIndex >= 0 && currentIndex < NAV.length - 1) {
+        navigate(NAV[currentIndex + 1].to);
+      }
+    },
+    onSwipedRight: () => {
+      if (currentIndex > 0) {
+        navigate(NAV[currentIndex - 1].to);
+      }
+    },
+    delta: 60,
+    preventScrollOnSwipe: false,
+    trackMouse: false,
+    swipeDuration: 500,
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
@@ -138,7 +162,7 @@ export function Layout() {
           </nav>
         </aside>
 
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0" {...swipeHandlers}>
           <Outlet />
         </main>
       </div>

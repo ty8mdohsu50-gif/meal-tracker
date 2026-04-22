@@ -47,6 +47,7 @@ export function MealRecordPage() {
 
   const [mode, setMode] = useState<Mode>('photo');
   const [mealType, setMealType] = useState<MealType>(defaultMealType());
+  const [recordedAt, setRecordedAt] = useState<string>(defaultDatetimeLocal());
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -131,7 +132,7 @@ export function MealRecordPage() {
   const handleSave = () => {
     if (drafts.length === 0) return;
     const mealId = uuid();
-    const now = new Date().toISOString();
+    const recordedIso = datetimeLocalToIso(recordedAt);
     const mealItems: MealItem[] = drafts.map((d) =>
       buildMealItemFromFood({
         meal_id: mealId,
@@ -150,7 +151,7 @@ export function MealRecordPage() {
     saveMeal(
       {
         meal_id: mealId,
-        recorded_at: now,
+        recorded_at: recordedIso,
         meal_type: mealType,
         input_method: mode === 'photo' ? 'photo' : 'search',
         gemini_confidence: geminiConfidence,
@@ -178,17 +179,26 @@ export function MealRecordPage() {
         <h1 className="text-xl font-bold">食事を記録</h1>
       </div>
 
-      <Select
-        label="食事タイプ"
-        value={mealType}
-        onChange={(e) => setMealType(e.target.value as MealType)}
-      >
-        {(Object.keys(MEAL_TYPE_LABELS) as MealType[]).map((k) => (
-          <option key={k} value={k}>
-            {MEAL_TYPE_LABELS[k]}
-          </option>
-        ))}
-      </Select>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Select
+          label="食事タイプ"
+          value={mealType}
+          onChange={(e) => setMealType(e.target.value as MealType)}
+        >
+          {(Object.keys(MEAL_TYPE_LABELS) as MealType[]).map((k) => (
+            <option key={k} value={k}>
+              {MEAL_TYPE_LABELS[k]}
+            </option>
+          ))}
+        </Select>
+        <Input
+          label="日時"
+          type="datetime-local"
+          value={recordedAt}
+          onChange={(e) => setRecordedAt(e.target.value)}
+          hint="過去の食事もここで日時を指定できます"
+        />
+      </div>
 
       <div className="flex rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
         <button
@@ -225,7 +235,6 @@ export function MealRecordPage() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png"
-                capture="environment"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -237,10 +246,10 @@ export function MealRecordPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
               >
-                {loading ? '認識中…' : '📷 写真を撮影 / 選択'}
+                {loading ? '認識中…' : '📷 写真を選ぶ'}
               </Button>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                JPEG / PNG、5MB以内
+                カメラで撮影、または端末内のアルバムから選択（JPEG / PNG、5MB以内）
               </p>
             </div>
           )}
@@ -498,4 +507,21 @@ function defaultMealType(): MealType {
   if (h < 15) return 'lunch';
   if (h < 21) return 'dinner';
   return 'snack';
+}
+
+function defaultDatetimeLocal(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function datetimeLocalToIso(dtLocal: string): string {
+  if (!dtLocal) return new Date().toISOString();
+  const d = new Date(dtLocal);
+  if (Number.isNaN(d.getTime())) return new Date().toISOString();
+  return d.toISOString();
 }

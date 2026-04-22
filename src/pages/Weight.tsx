@@ -12,6 +12,7 @@ export function WeightPage() {
   const { weights, saveWeight, deleteWeight } = useWeights();
   const { show } = useToast();
   const [value, setValue] = useState('');
+  const [date, setDate] = useState<string>(todayKey());
   const [editing, setEditing] = useState<string | null>(null);
 
   const sorted = useMemo(
@@ -34,17 +35,22 @@ export function WeightPage() {
       show('体重は 20〜300 kg の範囲で入力してください', 'error');
       return;
     }
+    if (!date) {
+      show('日付を選んでください', 'error');
+      return;
+    }
     const now = new Date().toISOString();
-    const existing = sorted.find((w) => w.recorded_date === todayKey());
+    const existing = sorted.find((w) => w.recorded_date === date);
     const weight: Weight = {
       weight_id: existing?.weight_id ?? uuid(),
-      recorded_date: todayKey(),
+      recorded_date: date,
       weight_kg: kg,
       recorded_at: now,
     };
     saveWeight(weight);
     setValue('');
-    show('記録しました', 'success');
+    setDate(todayKey());
+    show(existing ? `${date} の記録を更新しました` : '記録しました', 'success');
   };
 
   const handleEdit = (id: string, newValue: string) => {
@@ -64,19 +70,33 @@ export function WeightPage() {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold">体重記録</h1>
 
-      <Card title="今日の体重">
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            suffix="kg"
-            placeholder="65.3"
-            className="flex-1"
-          />
-          <Button onClick={handleSave}>記録</Button>
+      <Card title="体重を記録">
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="日付"
+              type="date"
+              value={date}
+              max={todayKey()}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <Input
+              label="体重"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              suffix="kg"
+              placeholder="65.3"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              過去の日付を選べば後から記録・修正できます
+            </p>
+            <Button onClick={handleSave}>記録</Button>
+          </div>
         </div>
       </Card>
 
