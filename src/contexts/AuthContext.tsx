@@ -8,8 +8,11 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  browserPopupRedirectResolver,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   type User,
 } from 'firebase/auth';
@@ -39,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    getRedirectResult(firebaseAuth, browserPopupRedirectResolver).catch((e) => {
+      if (e instanceof Error && e.message) setError(e.message);
+    });
     return onAuthStateChanged(firebaseAuth, async (next) => {
       setError(null);
       if (!next) {
@@ -77,9 +83,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async () => {
     setError(null);
+    if (shouldUseRedirect()) {
+      try {
+        await signInWithRedirect(firebaseAuth, googleProvider);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'ログインに失敗しました');
+      }
+      return;
+    }
     try {
-      await signInWithPopup(firebaseAuth, googleProvider);
+      await signInWithPopup(firebaseAuth, googleProvider, browserPopupRedirectResolver);
     } catch (e) {
+      const code = (e as { code?: string })?.code ?? '';
+      const popupFailure =
+        code === 'auth/popup-blocked' ||
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/operation-not-supported-in-this-environment';
+      if (popupFailure) {
+        try {
+          await signInWithRedirect(firebaseAuth, googleProvider);
+          return;
+        } catch (e2) {
+          setError(e2 instanceof Error ? e2.message : 'ログインに失敗しました');
+          return;
+        }
+      }
       setError(e instanceof Error ? e.message : 'ログインに失敗しました');
     }
   }, []);
@@ -100,6 +129,17 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+function shouldUseRedirect(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
+  const isSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua);
+  const isStandalone =
+    (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches) ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true;
+  return isIOS || isSafari || isStandalone;
 }
 
 function clearLocalSyncKeys() {

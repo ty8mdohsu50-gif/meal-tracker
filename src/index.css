@@ -5,10 +5,12 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   body {
     @apply bg-white text-zinc-900 antialiased;
     font-feature-settings: 'palt' 1;
+    overscroll-behavior-x: none;
   }
   .dark body {
     @apply bg-zinc-950 text-zinc-100;
@@ -18,10 +20,22 @@
   textarea {
     @apply bg-transparent;
   }
+  /* iOSでのフォーカス時自動ズームを防ぐため最低16px */
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
 @layer utilities {
   .safe-bottom {
     padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+  }
+  .min-h-dvh {
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 }

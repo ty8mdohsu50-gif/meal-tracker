@@ -96,25 +96,27 @@ export function Layout() {
   );
 
   const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => {
+    onSwipedLeft: (e) => {
+      if (Math.abs(e.deltaX) < Math.abs(e.deltaY) * 1.5) return;
       if (currentIndex >= 0 && currentIndex < NAV.length - 1) {
         navigate(NAV[currentIndex + 1].to);
       }
     },
-    onSwipedRight: () => {
+    onSwipedRight: (e) => {
+      if (Math.abs(e.deltaX) < Math.abs(e.deltaY) * 1.5) return;
       if (currentIndex > 0) {
         navigate(NAV[currentIndex - 1].to);
       }
     },
-    delta: 60,
+    delta: 120,
     preventScrollOnSwipe: false,
     trackMouse: false,
-    swipeDuration: 500,
+    swipeDuration: 400,
   });
 
   return (
     <div
-      className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+      className="min-h-dvh bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
       {...swipeHandlers}
     >
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
