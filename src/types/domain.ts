@@ -61,6 +61,7 @@ export type CustomFood = {
   p_per_100g: number;
   f_per_100g: number;
   c_per_100g: number;
+  barcode?: string | null;
   created_at: string;
   updated_at: string;
 };

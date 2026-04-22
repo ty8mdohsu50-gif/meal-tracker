@@ -53,6 +53,11 @@ export function FoodMasterPage() {
                     {food.kcal_per_100g} kcal / 100g ・ P: {food.p_per_100g}g F:{' '}
                     {food.f_per_100g}g C: {food.c_per_100g}g
                   </p>
+                  {food.barcode && (
+                    <p className="mt-0.5 font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+                      JAN: {food.barcode}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -110,12 +115,14 @@ export function CustomFoodFormModal({
   open,
   initialFood,
   initialName,
+  initialBarcode,
   onClose,
   onSubmit,
 }: {
   open: boolean;
   initialFood?: CustomFood;
   initialName?: string;
+  initialBarcode?: string;
   onClose: () => void;
   onSubmit: (food: Omit<CustomFood, 'food_id' | 'created_at' | 'updated_at'>) => void;
 }) {
@@ -124,6 +131,7 @@ export function CustomFoodFormModal({
   const [p, setP] = useState(String(initialFood?.p_per_100g ?? ''));
   const [f, setF] = useState(String(initialFood?.f_per_100g ?? ''));
   const [c, setC] = useState(String(initialFood?.c_per_100g ?? ''));
+  const [barcode, setBarcode] = useState(initialFood?.barcode ?? initialBarcode ?? '');
 
   useMemo(() => {
     if (open) {
@@ -132,8 +140,9 @@ export function CustomFoodFormModal({
       setP(String(initialFood?.p_per_100g ?? ''));
       setF(String(initialFood?.f_per_100g ?? ''));
       setC(String(initialFood?.c_per_100g ?? ''));
+      setBarcode(initialFood?.barcode ?? initialBarcode ?? '');
     }
-  }, [open, initialFood, initialName]);
+  }, [open, initialFood, initialName, initialBarcode]);
 
   const kcalNum = Number(kcal);
   const pNum = Number(p);
@@ -163,6 +172,7 @@ export function CustomFoodFormModal({
                 p_per_100g: pNum || 0,
                 f_per_100g: fNum || 0,
                 c_per_100g: cNum || 0,
+                barcode: barcode.trim() || null,
               })
             }
           >
@@ -191,6 +201,15 @@ export function CustomFoodFormModal({
           <Input label="F / 100g" type="number" inputMode="decimal" value={f} onChange={(e) => setF(e.target.value)} suffix="g" />
           <Input label="C / 100g" type="number" inputMode="decimal" value={c} onChange={(e) => setC(e.target.value)} suffix="g" />
         </div>
+        <Input
+          label="バーコード（任意）"
+          type="text"
+          inputMode="numeric"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+          placeholder="4901234567890"
+          hint="登録するとバーコードスキャン時に自動で呼び出されます"
+        />
         {!consistent && valid && (
           <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             ⚠ 表示カロリーと PFC から計算した kcal（{pNum * 4 + fNum * 9 + cNum * 4} kcal）が 10% 以上乖離しています。保存は可能です。

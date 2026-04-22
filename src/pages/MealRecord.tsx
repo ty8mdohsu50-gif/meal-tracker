@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { Alert, Button, Card, EmptyState, Input, Modal, Select } from '@/components/ui';
 import { useToast } from '@/components/Toast';
 import { MEAL_TYPE_LABELS } from '@/constants';
@@ -7,6 +8,7 @@ import { useFoods } from '@/contexts/FoodsContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { errorMessageFor } from '@/domain/errors';
 import { buildMealItemFromFood, recalculateMealTotals, getMealHistoryFoodIds } from '@/domain/mealAggregator';
+import { fetchProductByBarcode } from '@/infrastructure/openFoodFacts/openFoodFactsClient';
 import { errorLogRepository } from '@/infrastructure/storage/errorLogRepository';
 import { useApiUsage } from '@/hooks/useApiUsage';
 import { useCustomFoods } from '@/hooks/useCustomFoods';
@@ -23,7 +25,7 @@ import type {
 import { uuid } from '@/utils/id';
 import { CustomFoodFormModal } from './FoodMaster';
 
-type Mode = 'photo' | 'search';
+type Mode = 'photo' | 'search' | 'barcode';
 
 type Draft = {
   food_ref_id: string;
@@ -52,6 +54,10 @@ export function MealRecordPage() {
   const [loading, setLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customModalInitialName, setCustomModalInitialName] = useState('');
+  const [customModalInitialBarcode, setCustomModalInitialBarcode] = useState<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [geminiConfidence, setGeminiConfidence] = useState<number | undefined>();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +102,59 @@ export function MealRecordPage() {
       },
     ]);
     setSearchKeyword('');
+  };
+
+  const handleBarcodeDetected = async (barcode: string) => {
+    setScannerOpen(false);
+    const cleaned = barcode.replace(/[^0-9]/g, '');
+    if (!cleaned) return;
+
+    const existing = customFoods.find((f) => f.barcode === cleaned);
+    if (existing) {
+      addDraftFromFood(existing, 'custom');
+      show(`「${existing.name}」を追加しました`, 'success');
+      return;
+    }
+
+    setBarcodeLoading(true);
+    try {
+      const product = await fetchProductByBarcode(cleaned);
+      if (!product) {
+        show('商品データが見つかりませんでした。手動で登録してください', 'info');
+        setCustomModalInitialName('');
+        setCustomModalInitialBarcode(cleaned);
+        setShowCustomModal(true);
+        return;
+      }
+      if (product.kcal_per_100g === 0) {
+        show('栄養データが不完全です。確認して保存してください', 'info');
+        setCustomModalInitialName(product.name);
+        setCustomModalInitialBarcode(cleaned);
+        setShowCustomModal(true);
+        return;
+      }
+      const created = createCustomFood({
+        name: product.name,
+        kcal_per_100g: product.kcal_per_100g,
+        p_per_100g: product.p_per_100g,
+        f_per_100g: product.f_per_100g,
+        c_per_100g: product.c_per_100g,
+        barcode: cleaned,
+      });
+      addDraftFromFood(created, 'custom');
+      show(`「${product.name}」を追加しました`, 'success');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '商品データの取得に失敗しました';
+      show(msg, 'error');
+      errorLogRepository.append({
+        log_id: uuid(),
+        occurred_at: new Date().toISOString(),
+        category: 'unknown',
+        message: `barcode:${cleaned} ${msg}`,
+      });
+    } finally {
+      setBarcodeLoading(false);
+    }
   };
 
   const handlePhotoSelect = async (file: File) => {
@@ -203,23 +262,33 @@ export function MealRecordPage() {
       <div className="flex rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
         <button
           onClick={() => setMode('photo')}
-          className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
+          className={`flex-1 rounded-md py-2 text-xs font-medium transition sm:text-sm ${
             mode === 'photo'
               ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100'
               : 'text-zinc-500'
           }`}
         >
-          📷 写真で記録
+          📷 写真
         </button>
         <button
           onClick={() => setMode('search')}
-          className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
+          className={`flex-1 rounded-md py-2 text-xs font-medium transition sm:text-sm ${
             mode === 'search'
               ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100'
               : 'text-zinc-500'
           }`}
         >
-          🔍 検索で記録
+          🔍 検索
+        </button>
+        <button
+          onClick={() => setMode('barcode')}
+          className={`flex-1 rounded-md py-2 text-xs font-medium transition sm:text-sm ${
+            mode === 'barcode'
+              ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100'
+              : 'text-zinc-500'
+          }`}
+        >
+          🧾 バーコード
         </button>
       </div>
 
@@ -304,6 +373,26 @@ export function MealRecordPage() {
               )}
             </div>
           )}
+        </Card>
+      )}
+
+      {mode === 'barcode' && (
+        <Card>
+          <div className="flex flex-col items-center gap-3 py-6">
+            <Button
+              size="lg"
+              onClick={() => setScannerOpen(true)}
+              disabled={barcodeLoading}
+            >
+              {barcodeLoading ? '商品を検索中…' : '🧾 バーコードをスキャン'}
+            </Button>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              コンビニ食品・加工食品のJANコードから kcal / PFC を自動取得します。
+            </p>
+            <p className="text-[11px] leading-relaxed text-zinc-400 dark:text-zinc-500">
+              商品データは Open Food Facts（世界最大のオープン食品DB）を参照。日本の商品は収録が限られるため、見つからない場合は手動登録になります。
+            </p>
+          </div>
         </Card>
       )}
 
@@ -395,14 +484,27 @@ export function MealRecordPage() {
 
       <CustomFoodFormModal
         open={showCustomModal}
-        initialName={searchKeyword}
-        onClose={() => setShowCustomModal(false)}
+        initialName={customModalInitialBarcode ? customModalInitialName : searchKeyword}
+        initialBarcode={customModalInitialBarcode ?? undefined}
+        onClose={() => {
+          setShowCustomModal(false);
+          setCustomModalInitialBarcode(null);
+          setCustomModalInitialName('');
+        }}
         onSubmit={(input) => {
           const created = createCustomFood(input);
           addDraftFromFood(created, 'custom');
           show(`「${created.name}」を登録しました`, 'success');
           setShowCustomModal(false);
+          setCustomModalInitialBarcode(null);
+          setCustomModalInitialName('');
         }}
+      />
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onDetected={handleBarcodeDetected}
       />
     </div>
   );
