@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CalcBreakdown } from '@/components/CalcBreakdown';
 import { Alert, Button, Card, Input, Select } from '@/components/ui';
 import { useToast } from '@/components/Toast';
 import { ACTIVITY_LEVELS, APP_CONFIG, PFC_POLICY_CONFIG } from '@/constants';
@@ -45,6 +46,8 @@ export function SettingsPage() {
       target_weight_change_per_week: draft.target_weight_change_per_week,
       target_weight_kg: draft.target_weight_kg ?? null,
       target_date: draft.target_date ?? null,
+      current_body_fat_pct: draft.current_body_fat_pct ?? null,
+      target_body_fat_pct: draft.target_body_fat_pct ?? null,
       current_target_kcal: draft.current_target_kcal,
       current_target_p: draft.current_target_p,
       current_target_f: draft.current_target_f,
@@ -232,6 +235,20 @@ export function SettingsPage() {
             }
             suffix="%"
           />
+          <Input
+            label="現在の体脂肪率"
+            type="number"
+            step="0.1"
+            value={draft.current_body_fat_pct ?? ''}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                current_body_fat_pct: e.target.value ? Number(e.target.value) : null,
+              })
+            }
+            suffix="%"
+            placeholder="任意"
+          />
         </div>
 
         <div className="mt-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
@@ -277,9 +294,23 @@ export function SettingsPage() {
                 value={draft.target_date ?? ''}
                 onChange={(e) => setGoalCustom({ targetDate: e.target.value })}
               />
-              <div className="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <Input
+                label="目標体脂肪率（任意）"
+                type="number"
+                step="0.1"
+                value={draft.target_body_fat_pct ?? ''}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    target_body_fat_pct: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+                suffix="%"
+                placeholder="15"
+              />
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">
                 現在のペース：
-                <span className="font-mono font-semibold">
+                <span className="ml-1 font-mono font-semibold">
                   {derivedKgPerWeek > 0 ? '+' : ''}
                   {derivedKgPerWeek.toFixed(2)} kg/週
                 </span>
@@ -312,6 +343,8 @@ export function SettingsPage() {
           <Button onClick={save}>保存</Button>
         </div>
       </Card>
+
+      <CalcBreakdown settings={settings} />
 
       <Card title="Gemini API キー">
         <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">

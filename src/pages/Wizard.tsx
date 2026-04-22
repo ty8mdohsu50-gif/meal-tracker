@@ -43,10 +43,12 @@ export function WizardPage() {
   const [age, setAge] = useState<string>('30');
   const [heightCm, setHeightCm] = useState<string>('170');
   const [weightKg, setWeightKg] = useState<string>('65');
+  const [bodyFat, setBodyFat] = useState<string>('');
   const [activity, setActivity] = useState<ActivityLevelKey>('lightlyActive');
   const [policy, setPolicy] = useState<PfcPolicy>('maintain');
   const [goalMode, setGoalMode] = useState<GoalMode>('maintain');
   const [targetWeight, setTargetWeight] = useState<string>('');
+  const [targetBodyFat, setTargetBodyFat] = useState<string>('');
   const [targetDate, setTargetDate] = useState<string>(() =>
     isoDateOffsetFromToday(DEFAULT_TARGET_DATE_WEEKS),
   );
@@ -127,6 +129,9 @@ export function WizardPage() {
       target_weight_change_per_week: weeklyChange,
       target_weight_kg: goalMode === 'custom' ? Number(targetWeight) : null,
       target_date: goalMode === 'custom' ? targetDate : null,
+      current_body_fat_pct: bodyFat.trim() ? Number(bodyFat) : null,
+      target_body_fat_pct:
+        goalMode === 'custom' && targetBodyFat.trim() ? Number(targetBodyFat) : null,
       current_target_kcal: preview.targetKcal,
       current_target_p: preview.pfc.p,
       current_target_f: preview.pfc.f,
@@ -154,6 +159,7 @@ export function WizardPage() {
       weight_id: uuid(),
       recorded_date: todayKey(),
       weight_kg: currentWeight,
+      body_fat_pct: bodyFat.trim() ? Number(bodyFat) : null,
       recorded_at: now,
     });
     reload();
@@ -211,6 +217,16 @@ export function WizardPage() {
               suffix="kg"
               inputMode="decimal"
               step="0.1"
+            />
+            <Input
+              label="現在の体脂肪率（任意）"
+              type="number"
+              value={bodyFat}
+              onChange={(e) => setBodyFat(e.target.value)}
+              suffix="%"
+              inputMode="decimal"
+              step="0.1"
+              hint="体組成計の値があれば入力。あとで追加・修正もできます"
             />
           </div>
         )}
@@ -329,22 +345,35 @@ export function WizardPage() {
               </div>
 
               {goalMode === 'custom' && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="mt-3 flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="目標体重"
+                      type="number"
+                      value={targetWeight}
+                      onChange={(e) => setTargetWeight(e.target.value)}
+                      suffix="kg"
+                      inputMode="decimal"
+                      step="0.1"
+                      placeholder={String(Math.max(0, currentWeight - 3))}
+                    />
+                    <Input
+                      label="達成したい日"
+                      type="date"
+                      value={targetDate}
+                      onChange={(e) => setTargetDate(e.target.value)}
+                    />
+                  </div>
                   <Input
-                    label="目標体重"
+                    label="目標体脂肪率（任意）"
                     type="number"
-                    value={targetWeight}
-                    onChange={(e) => setTargetWeight(e.target.value)}
-                    suffix="kg"
+                    value={targetBodyFat}
+                    onChange={(e) => setTargetBodyFat(e.target.value)}
+                    suffix="%"
                     inputMode="decimal"
                     step="0.1"
-                    placeholder={String(Math.max(0, currentWeight - 3))}
-                  />
-                  <Input
-                    label="達成したい日"
-                    type="date"
-                    value={targetDate}
-                    onChange={(e) => setTargetDate(e.target.value)}
+                    placeholder="15"
+                    hint="体重と合わせて目標にできます。kcal計算には影響しません"
                   />
                 </div>
               )}

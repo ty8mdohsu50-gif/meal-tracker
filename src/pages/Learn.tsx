@@ -82,7 +82,7 @@ export function LearnPage() {
             </li>
           </ul>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            このアプリでは BMR を Mifflin-St Jeor 式で計算し、活動レベルをかけて TDEE（総消費）を求めています。
+            このアプリでは BMR を Harris-Benedict 改訂版（1984）で計算し、活動レベルをかけて TDEE（総消費）を求めています。詳しい計算式は「設定」→「目標kcalの計算式」からあなたの数値で展開できます。
           </p>
         </div>
       </Card>

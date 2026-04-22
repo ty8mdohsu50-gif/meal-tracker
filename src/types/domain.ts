@@ -70,6 +70,7 @@ export type Weight = {
   weight_id: string;
   recorded_date: string;
   weight_kg: number;
+  body_fat_pct?: number | null;
   recorded_at: string;
 };
 
@@ -85,6 +86,8 @@ export type Settings = {
   target_weight_change_per_week: number;
   target_weight_kg?: number | null;
   target_date?: string | null;
+  current_body_fat_pct?: number | null;
+  target_body_fat_pct?: number | null;
   current_target_kcal: number;
   current_target_p: number;
   current_target_f: number;
