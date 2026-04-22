@@ -14,8 +14,10 @@ export const APP_CONFIG = {
   GEMINI_MAX_RETRIES: 3,
   GEMINI_BASE_RETRY_DELAY_MS: 1000,
 
-  IMAGE_MAX_SIZE_BYTES: 5 * 1024 * 1024,
-  IMAGE_ACCEPTED_MIME: ['image/jpeg', 'image/png'] as const,
+  IMAGE_MAX_SIZE_BYTES: 30 * 1024 * 1024,
+  IMAGE_RESIZE_MAX_DIMENSION: 1600,
+  IMAGE_RESIZE_QUALITY: 0.85,
+  IMAGE_ACCEPTED_MIME: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'] as const,
 
   FUZZY_THRESHOLD: 0.4,
   FUZZY_MAX_RESULTS: 3,

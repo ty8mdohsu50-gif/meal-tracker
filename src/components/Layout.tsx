@@ -59,6 +59,16 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    to: '/learn',
+    label: '学ぶ',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      </svg>
+    ),
+  },
+  {
     to: '/settings',
     label: '設定',
     icon: (
@@ -103,7 +113,10 @@ export function Layout() {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div
+      className="min-h-screen bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+      {...swipeHandlers}
+    >
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
@@ -162,13 +175,13 @@ export function Layout() {
           </nav>
         </aside>
 
-        <main className="flex-1 min-w-0" {...swipeHandlers}>
+        <main className="flex-1 min-w-0">
           <Outlet />
         </main>
       </div>
 
       <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-20 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90 md:hidden">
-        <div className="mx-auto grid max-w-lg grid-cols-6">
+        <div className="mx-auto grid max-w-lg grid-cols-7">
           {NAV.map((item) => (
             <NavLink
               key={item.to}

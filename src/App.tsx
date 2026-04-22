@@ -7,6 +7,7 @@ import { SettingsProvider, useSettings } from '@/contexts/SettingsContext';
 import { DashboardPage } from '@/pages/Dashboard';
 import { FoodMasterPage } from '@/pages/FoodMaster';
 import { HistoryPage } from '@/pages/History';
+import { LearnPage } from '@/pages/Learn';
 import { LoginPage } from '@/pages/Login';
 import { MealRecordPage } from '@/pages/MealRecord';
 import { SettingsPage } from '@/pages/Settings';
@@ -72,6 +73,7 @@ function AppRouter() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/weight" element={<WeightPage />} />
         <Route path="/foods" element={<FoodMasterPage />} />
+        <Route path="/learn" element={<LearnPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="/wizard" element={<Navigate to="/" replace />} />

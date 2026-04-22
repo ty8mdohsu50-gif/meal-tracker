@@ -52,6 +52,7 @@ export function MealRecordPage() {
   const [recordedAt, setRecordedAt] = useState<string>(defaultDatetimeLocal());
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState<{ current: number; total: number } | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalInitialName, setCustomModalInitialName] = useState('');
@@ -157,33 +158,61 @@ export function MealRecordPage() {
     }
   };
 
-  const handlePhotoSelect = async (file: File) => {
+  const handlePhotoSelect = async (files: File[]) => {
+    if (files.length === 0) return;
     if (!settings.api_key_enc) {
       show('設定画面でGemini APIキーを登録してください', 'error');
       navigate('/settings');
       return;
     }
     setLoading(true);
+    setPhotoProgress({ current: 0, total: files.length });
+
+    const accumulated: Draft[] = [];
+    const confidences: number[] = [];
+    let failed = 0;
+
     try {
-      const dishes = await estimateDishesFromFile(file, settings.api_key_enc);
-      const newDrafts = dishes.map((dish) => dishToDraft(dish, fuzzyMatcher));
-      setDrafts((prev) => [...prev, ...newDrafts]);
-      const avgConf =
-        dishes.reduce((s, d) => s + d.confidence, 0) / Math.max(dishes.length, 1);
-      setGeminiConfidence(avgConf);
-      show(`${dishes.length} 件の料理を認識しました`, 'success');
-    } catch (e) {
-      const msg = errorMessageFor(e);
-      show(msg, 'error');
-      errorLogRepository.append({
-        log_id: uuid(),
-        occurred_at: new Date().toISOString(),
-        category: 'gemini',
-        message: msg,
-      });
-      setMode('search');
+      for (let i = 0; i < files.length; i++) {
+        setPhotoProgress({ current: i + 1, total: files.length });
+        try {
+          const dishes = await estimateDishesFromFile(files[i], settings.api_key_enc);
+          accumulated.push(...dishes.map((dish) => dishToDraft(dish, fuzzyMatcher)));
+          confidences.push(
+            dishes.reduce((s, d) => s + d.confidence, 0) / Math.max(dishes.length, 1),
+          );
+        } catch (e) {
+          failed++;
+          const msg = errorMessageFor(e);
+          errorLogRepository.append({
+            log_id: uuid(),
+            occurred_at: new Date().toISOString(),
+            category: 'gemini',
+            message: `photo ${i + 1}/${files.length}: ${msg}`,
+          });
+        }
+      }
+
+      if (accumulated.length > 0) {
+        setDrafts((prev) => [...prev, ...accumulated]);
+        setGeminiConfidence(
+          confidences.reduce((s, v) => s + v, 0) / Math.max(confidences.length, 1),
+        );
+        if (failed > 0) {
+          show(
+            `${accumulated.length} 件認識（${failed} 枚は失敗）`,
+            'info',
+          );
+        } else {
+          show(`${accumulated.length} 件の料理を認識しました`, 'success');
+        }
+      } else {
+        show('どの写真からも料理を認識できませんでした', 'error');
+        setMode('search');
+      }
     } finally {
       setLoading(false);
+      setPhotoProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -303,11 +332,12 @@ export function MealRecordPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png"
+                accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handlePhotoSelect(file);
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) handlePhotoSelect(files);
                 }}
               />
               <Button
@@ -315,10 +345,17 @@ export function MealRecordPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
               >
-                {loading ? '認識中…' : '📷 写真を選ぶ'}
+                {loading
+                  ? photoProgress
+                    ? `認識中… ${photoProgress.current}/${photoProgress.total}`
+                    : '認識中…'
+                  : '📷 写真を選ぶ（複数可）'}
               </Button>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                カメラで撮影、または端末内のアルバムから選択（JPEG / PNG、5MB以内）
+                カメラで連続撮影、または端末内のアルバムから複数選択できます
+              </p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                送信前に自動で縮小・圧縮するため、大きなスマホ写真もそのまま使えます
               </p>
             </div>
           )}
